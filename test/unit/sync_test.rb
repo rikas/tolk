@@ -16,15 +16,6 @@ class SyncTest < ActiveSupport::TestCase
     Tolk::Locale.primary_locale(true)
   end
 
-  def test_flat_hash
-    data = {'home' => {'hello' => 'hola', 'sidebar' => {'title' => 'something'}}}
-    result = Tolk::Locale.send(:flat_hash, data)
-
-    assert_equal 2, result.keys.size
-    assert_equal ['home.hello', 'home.sidebar.title'], result.keys.sort
-    assert_equal ['hola', 'something'], result.values.sort
-  end
-
   def test_sync_sets_previous_text_for_primary_locale
     Tolk::Locale.expects(:load_translations).returns({"hello_world" => "Hello World"}).at_least_once
     Tolk::Locale.sync!
@@ -223,17 +214,5 @@ class SyncTest < ActiveSupport::TestCase
     assert_equal 'hola', data['hello_world']
   ensure
     FileUtils.rm_f(tmpdir)
-  end
-
-  def test_sync_ignore_keys
-    Tolk.config.ignore_keys = %w[ignored nested.ignored]
-
-    Tolk::Locale.sync!
-
-    phrase = Tolk::Phrase.all.detect {|p| p.key == 'ignored'}
-    assert_nil phrase
-
-    phrase = Tolk::Phrase.all.detect {|p| p.key == 'nested.ignored'}
-    assert_nil phrase
   end
 end

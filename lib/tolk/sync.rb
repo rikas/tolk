@@ -29,32 +29,18 @@ module Tolk
         else
           I18n.backend.send :init_translations unless I18n.backend.initialized? # force load
         end
-        translations = flat_hash(I18n.backend.send(:translations)[primary_locale.name.to_sym])
-        filtered = filter_out_i18n_keys(translations.merge(read_primary_locale_file))
-        filter_out_ignored_keys(filtered)
+        translations = Tolk::Utils.flat_hash(I18n.backend.send(:translations)[primary_locale.name.to_sym])
+        filtered = Tolk::Utils.filter_out_i18n_keys(translations.merge(read_primary_locale_file))
+        Tolk::Utils.filter_out_ignored_keys(filtered)
       end
 
       def read_primary_locale_file
         primary_file = "#{self.locales_config_path}/#{self.primary_locale_name}.yml"
         if File.exist?(primary_file)
-          flat_hash(Tolk::YAML.load_file(primary_file)[self.primary_locale_name])
+          Tolk::Utils.flat_hash(Tolk::YAML.load_file(primary_file)[self.primary_locale_name])
         else
           {}
         end
-      end
-
-      def flat_hash(data, prefix = '', result = {})
-        data.each do |key, value|
-          current_prefix = prefix.present? ? "#{prefix}.#{key}" : key
-
-          if !value.is_a?(Hash) || Tolk::Locale.pluralization_data?(value)
-            result[current_prefix] = value.respond_to?(:stringify_keys) ? value.stringify_keys : value
-          else
-            flat_hash(value, current_prefix, result)
-          end
-        end
-
-        result.stringify_keys
       end
 
       private
@@ -84,22 +70,6 @@ module Tolk
           translation.primary = true
           translation.save! if translation.changed?
         end
-      end
-
-      def filter_out_i18n_keys(flat_hash)
-        flat_hash.reject { |key, value| key.starts_with? "i18n" }
-      end
-
-      def filter_out_ignored_keys(flat_hash)
-        ignored = Tolk.config.ignore_keys
-
-        return flat_hash unless ignored.any?
-
-        ignored_escaped = ignored.map { |key| Regexp.escape(key) }
-
-        regexp = Regexp.new(/\A#{ignored_escaped.join('|')}/)
-
-        flat_hash.reject { |key, _| regexp === key }
       end
     end
   end

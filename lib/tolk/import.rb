@@ -5,18 +5,19 @@ module Tolk
     end
 
     module ClassMethods
-
       def import_secondary_locales
-        locales = Dir.entries(self.locales_config_path)
+        locales = Tolk::Locale.where.not(name: Tolk::Locale.primary_locale.name).pluck(:name)
 
-        locale_block_filter = Proc.new {
-          |l| ['.', '..'].include?(l) ||
-            !l.ends_with?('.yml') ||
-            l.match(/(.*\.){2,}/) # reject files of type xxx.en.yml
-        }
-        locales = locales.reject(&locale_block_filter).map {|x| x.split('.').first }
-        locales = locales - [Tolk::Locale.primary_locale.name]
-        locales.each {|l| import_locale(l) }
+        # locales = Dir.entries(self.locales_config_path)
+        #
+        # locale_block_filter = Proc.new {
+        #   |l| ['.', '..'].include?(l) ||
+        #     !l.ends_with?('.yml') ||
+        #     l.match(/(.*\.){2,}/) # reject files of type xxx.en.yml
+        # }
+        # locales = locales.reject(&locale_block_filter).map {|x| x.split('.').first }
+        # locales = locales - [Tolk::Locale.primary_locale.name]
+        locales.each { |l| import_locale(l) }
       end
 
       def import_locale(locale_name)
@@ -30,12 +31,23 @@ module Tolk
 
         data.each do |key, value|
           phrase = phrases_by_key[key]
+
           unless phrase
             puts "[ERROR] Key '#{key}' was found in '#{locale_name}.yml' but #{Tolk::Locale.primary_language_name} translation is missing"
             next
           end
-          next if translated_phrase_ids.include?(phrase.id)
-          translation = locale.translations.new(:text => value, :phrase => phrase)
+
+          if translated_phrase_ids.include?(phrase.id)
+            next if value.to_s.empty?
+
+            translation = locale.translations.find_by(:phrase_id => phrase.id)
+            translation.text = value
+
+            next unless translation.changed?
+          else
+            translation = locale.translations.new(:text => value, :phrase => phrase)
+          end
+
           if translation.save
             count = count + 1
           elsif translation.errors[:variables].present?
@@ -48,18 +60,10 @@ module Tolk
     end
 
     def read_locale_file
-      locale_file = "#{self.locales_config_path}/#{self.name}.yml"
-      raise "Locale file #{locale_file} does not exists" unless File.exist?(locale_file)
-
-      puts "[INFO] Reading #{locale_file} for locale #{self.name}"
-      begin
-        self.class.flat_hash(Tolk::YAML.load_file(locale_file)[self.name])
-      rescue
-        puts "[ERROR] File #{locale_file} expected to declare #{self.name} locale, but it does not. Skipping this file."
-        nil
-      end
-
+      I18n.backend.init_translations unless I18n.backend.initialized?
+      translations = Tolk::Utils.flat_hash(I18n.backend.translations[self.name.to_sym])
+      translations = Tolk::Utils.filter_out_i18n_keys(translations)
+      Tolk::Utils.filter_out_ignored_keys(translations)
     end
-
   end
 end

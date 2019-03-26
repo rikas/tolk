@@ -1,6 +1,7 @@
 require 'safe_yaml/load'
 require 'tolk/config'
 require 'tolk/engine'
+require 'tolk/utils'
 require 'tolk/sync'
 require 'tolk/import'
 require 'tolk/export'
